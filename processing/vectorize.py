@@ -9,9 +9,9 @@ from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.tree import DecisionTreeClassifier
 from sklearn import cross_validation
 from nltk.corpus import stopwords
-from nltk.stem.snowball import SnowballStemmer
-import string
 import json
+
+from processing.stem import stem_message
 
 
 def main():
@@ -23,23 +23,11 @@ def main():
     feature = vectorizer.transform([stemmed_message])
     author_index = clf.predict(feature)[0]
 
-    # TODO: taken from json-topkl.py
+    # TODO: taken from json-to-pkl.py
     with open('../output/users.json', 'r') as users_json:
         users = json.load(users_json)
 
     print('"' + message + '"' + ' най-вероятно е съобщение на ' + str(users[author_index]['real_name']) + ' (' + str(author_index) + ')')
-
-
-def stem_message(message):
-    """ TODO: reuse from json-to-pkl.py? """
-    stemmer = SnowballStemmer("russian")
-    # remove punctuation
-    # ref 1: https://stackoverflow.com/questions/265960/best-way-to-strip-punctuation-from-a-string-in-python
-    # ref 2: https://stackoverflow.com/questions/23175809/typeerror-translate-takes-one-argument-2-given-python
-    message = message.translate({ord(c): None for c in string.punctuation})
-    # stem each word from message and compose again
-    stemmed_words = [stemmer.stem(word) for word in message.split()]
-    return str.join(' ', stemmed_words)
 
 
 def vectorize_and_get_classifier(trainset_limit=0):
@@ -62,7 +50,9 @@ def vectorize_and_get_classifier(trainset_limit=0):
     vectorizer = TfidfVectorizer(stop_words=bulgarian_stopwords, max_df=0.5)
     # build tf-idf matrix
     # ref: https://en.wikipedia.org/wiki/Tf%E2%80%93idf
+    # learn vocabulary on training set, and return training matrix
     features_train = vectorizer.fit_transform(features_train)
+    # return testing matrix with the vocabulary learned from the training set
     features_test = vectorizer.transform(features_test).toarray()
 
     # limit data volume, useful for development
@@ -76,6 +66,7 @@ def vectorize_and_get_classifier(trainset_limit=0):
     # use DT classifier
     clf = DecisionTreeClassifier()
     clf.fit(features_train, labels_train)
+
     # print classifier accuracy
     print('dt accuracy: ' + str(clf.score(features_test, labels_test)))
     # find most important word index in list

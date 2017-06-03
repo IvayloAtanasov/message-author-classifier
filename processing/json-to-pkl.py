@@ -2,12 +2,10 @@
     Transforms Slack API json data into pkl file with single messages list for each user
 """
 import sys
-import io
 import json
 import pickle
-import pprint
-from nltk.stem.snowball import SnowballStemmer
-import string
+
+from processing.stem import stem_message
 
 
 def main():
@@ -84,19 +82,11 @@ def flatten_messages(channels):
 
 def stem_messages(user_messages):
     user_stemmed_messages = {}
-    # TODO: used a russian stemmer, english words remain unprocessed
-    stemmer = SnowballStemmer("russian")
     for user_id, messages in user_messages.items():
         # keep only strings with content as messages
         messages = [message for message in messages if isinstance(message, str) and len(message) > 1]
         for index, message in enumerate(messages):
-            # remove punctuation
-            # ref 1: https://stackoverflow.com/questions/265960/best-way-to-strip-punctuation-from-a-string-in-python
-            # ref 2: https://stackoverflow.com/questions/23175809/typeerror-translate-takes-one-argument-2-given-python
-            message = message.translate({ord(c): None for c in string.punctuation})
-            # stem each word from message and compose again
-            stemmed_words = [stemmer.stem(word) for word in message.split()]
-            messages[index] = str.join(' ', stemmed_words)
+            messages[index] = stem_message(message)
 
         user_stemmed_messages[user_id] = messages
         print('User', user_id, 'has', len(messages), 'messages')
