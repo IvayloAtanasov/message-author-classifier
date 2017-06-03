@@ -1,6 +1,3 @@
-#!/usr/bin/python
-# -*- coding: utf-8 -*-
-
 """
     Transforms Slack API json data into pkl file with single messages list for each user
 """
@@ -13,21 +10,12 @@ from nltk.stem.snowball import SnowballStemmer
 import string
 
 
-# ref: http://stackoverflow.com/a/10883893
-# usage: MyPrettyPrinter().pprint(channels)
-class MyPrettyPrinter(pprint.PrettyPrinter):
-    def format(self, object, context, maxlevels, level):
-        if isinstance(object, unicode):
-            return (object.encode('utf8'), True, False)
-        return pprint.PrettyPrinter.format(self, object, context, maxlevels, level)
-
-
 def main():
     # load files
-    with open('../output/users.json', 'r') as users_json:
+    with open('../output/users.json', 'r', encoding='utf-8') as users_json:
         users = json.load(users_json)
 
-    with open('../output/channels.json', 'r') as channels_json:
+    with open('../output/channels.json', 'r', encoding='utf-8') as channels_json:
         channels = json.load(channels_json)
 
     # testing user_index_by_id
@@ -42,13 +30,13 @@ def main():
 
     messages_output = []
     authors_output = []
-    for user_id, messages in user_messages.iteritems():
+    for user_id, messages in user_messages.items():
         for message in messages:
             authors_output.append(user_index_by_id(user_id, users))
             messages_output.append(message)
 
-    pickle.dump(messages_output, open('messages.pkl', 'w'))
-    pickle.dump(authors_output, open('authors.pkl', 'w'))
+    pickle.dump(messages_output, open('messages.pkl', 'wb'))
+    pickle.dump(authors_output, open('authors.pkl', 'wb'))
 
 
 def user_index_by_id(slack_id, users):
@@ -98,9 +86,9 @@ def stem_messages(user_messages):
     user_stemmed_messages = {}
     # TODO: used a russian stemmer, english words remain unprocessed
     stemmer = SnowballStemmer("russian")
-    for user_id, messages in user_messages.iteritems():
+    for user_id, messages in user_messages.items():
         # keep only strings with content as messages
-        messages = [message for message in messages if isinstance(message, basestring) and len(message) > 1]
+        messages = [message for message in messages if isinstance(message, str) and len(message) > 1]
         for index, message in enumerate(messages):
             # remove punctuation
             # ref 1: https://stackoverflow.com/questions/265960/best-way-to-strip-punctuation-from-a-string-in-python
@@ -108,13 +96,14 @@ def stem_messages(user_messages):
             message = message.translate({ord(c): None for c in string.punctuation})
             # stem each word from message and compose again
             stemmed_words = [stemmer.stem(word) for word in message.split()]
-            messages[index] = string.join(stemmed_words)
+            messages[index] = str.join(' ', stemmed_words)
 
         user_stemmed_messages[user_id] = messages
-        print('User', user_id, 'has', len(messages))
+        print('User', user_id, 'has', len(messages), 'messages')
 
     # TODO: debug
-    #MyPrettyPrinter().pprint(user_stemmed_messages)
+    #pp = pprint.PrettyPrinter(indent=4)
+    #pp.pprint(user_stemmed_messages)
     return user_stemmed_messages
 
 
