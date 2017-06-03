@@ -20,7 +20,7 @@ def main():
     clf, vectorizer = vectorize_and_get_classifier()
 
     # TODO: taken from json-to-pkl.py
-    with open('../output/users.json', 'r') as users_json:
+    with open('../slack-data/users.json', 'r') as users_json:
         users = json.load(users_json)
 
     print('Listening for messages...')
@@ -34,7 +34,7 @@ def main():
         author_index = clf.predict(feature)[0]
 
         print('"' + str(message) + '"' + ' най-вероятно е съобщение на ' + str(users[author_index]['real_name']) + ' (' + str(author_index) + ')')
-        # output response to stdout
+        # slack-data response to stdout
         sys.stdout.write(str(users[author_index]['real_name']) + '\n')
 
 def vectorize_and_get_classifier(trainset_limit=0):

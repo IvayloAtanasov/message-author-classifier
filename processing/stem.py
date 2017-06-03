@@ -3,7 +3,8 @@ import string
 
 
 def stem_message(message):
-    # TODO: used a russian stemmer, english words remain unprocessed
+    # TODO: used a russian stemmer, english words remain unprocessed.
+    # TODO: Pycache kicks in since we instantiate stemmer in a massive for loop. Fix?
     stemmer = SnowballStemmer("russian")
     # remove punctuation
     # ref 1: https://stackoverflow.com/questions/265960/best-way-to-strip-punctuation-from-a-string-in-python

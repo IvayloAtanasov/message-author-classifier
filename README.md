@@ -32,3 +32,15 @@
     from project copy `people-classifier\processing\stopwords-bg.txt` and paste into stopwords folder as `bulgarian`
 
 ### Run `npm install` to download all NodeJS libraries needed.
+
+## Start
+
+Make your own `secrets.json` file using `secrets.template.json`
+
+Run `npm run reload-data` to fetch your chat history from Slack API
+
+Run `python ./processing/json-to-pkl.py` to transform your data into features/labels format, suitable for further processing
+
+Run `npm start`
+
+*You can also run `python ./processing/vectorize.py` standalone to test the classifier manually from stdin*

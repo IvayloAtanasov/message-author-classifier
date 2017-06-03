@@ -10,10 +10,10 @@ from processing.stem import stem_message
 
 def main():
     # load files
-    with open('../output/users.json', 'r', encoding='utf-8') as users_json:
+    with open('../slack-data/users.json', 'r', encoding='utf-8') as users_json:
         users = json.load(users_json)
 
-    with open('../output/channels.json', 'r', encoding='utf-8') as channels_json:
+    with open('../slack-data/channels.json', 'r', encoding='utf-8') as channels_json:
         channels = json.load(channels_json)
 
     # testing user_index_by_id

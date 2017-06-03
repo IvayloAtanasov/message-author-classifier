@@ -1,5 +1,5 @@
 node_modules
-output
+slack-data
 processing/*.pkl
 secrets.json
 
