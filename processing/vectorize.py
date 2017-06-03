@@ -15,20 +15,27 @@ from processing.stem import stem_message
 
 
 def main():
+    # TODO: cache classifier and vectorizer into pkl files.
+    # ref: http://scikit-learn.org/stable/modules/model_persistence.html
     clf, vectorizer = vectorize_and_get_classifier()
-
-    # test message
-    message = "като цяло"
-    stemmed_message = stem_message(message)
-    feature = vectorizer.transform([stemmed_message])
-    author_index = clf.predict(feature)[0]
 
     # TODO: taken from json-to-pkl.py
     with open('../output/users.json', 'r') as users_json:
         users = json.load(users_json)
 
-    print('"' + message + '"' + ' най-вероятно е съобщение на ' + str(users[author_index]['real_name']) + ' (' + str(author_index) + ')')
+    print('Listening for messages...')
 
+    # listen for messages in stdin
+    for message in sys.stdin:
+        # remove newline symbols, if any
+        message = message.strip('\r\n')
+        stemmed_message = stem_message(message)
+        feature = vectorizer.transform([stemmed_message])
+        author_index = clf.predict(feature)[0]
+
+        print('"' + str(message) + '"' + ' най-вероятно е съобщение на ' + str(users[author_index]['real_name']) + ' (' + str(author_index) + ')')
+        # output response to stdout
+        sys.stdout.write(str(users[author_index]['real_name']) + '\n')
 
 def vectorize_and_get_classifier(trainset_limit=0):
     authors = pickle.load(open('authors.pkl', 'rb'))
