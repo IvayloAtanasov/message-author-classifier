@@ -4,9 +4,11 @@
 import sys
 import json
 import pickle
+import pprint
 
-from processing.stem import stem_message
+from stem import stem_message
 
+MIN_MESSAGES_REQUIRED = 500
 
 def main():
     # load files
@@ -22,13 +24,17 @@ def main():
     #print(user_index_by_id('U02JCLRNM', users)) # 14
     #print(user_index_by_id('U035G43MH', users)) # 3
 
-    user_messages = flatten_messages(channels)
+    users_messages = flatten_messages(channels)
+    # balance dataset by discarding users without enough messages
+    # and discarding data for users with too many
+    # ref: https://www.quora.com/In-classification-how-do-you-handle-an-unbalanced-training-set
+    users_messages = balance_messages(users_messages)
     # stem words before outputting to pkl
-    user_messages = stem_messages(user_messages)
+    users_messages = stem_messages(users_messages)
 
     messages_output = []
     authors_output = []
-    for user_id, messages in user_messages.items():
+    for user_id, messages in users_messages.items():
         for message in messages:
             authors_output.append(user_index_by_id(user_id, users))
             messages_output.append(message)
@@ -80,22 +86,50 @@ def flatten_messages(channels):
     return messages
 
 
-def stem_messages(user_messages):
-    user_stemmed_messages = {}
-    for user_id, messages in user_messages.items():
-        # keep only strings with content as messages
-        messages = [message for message in messages if isinstance(message, str) and len(message) > 1]
-        for index, message in enumerate(messages):
-            messages[index] = stem_message(message)
+def balance_messages(users_messages):
+    users_before_balancing = len(users_messages.keys())
+    for user_id in list(users_messages.keys()):
+        if len(users_messages[user_id]) < MIN_MESSAGES_REQUIRED:
+            del users_messages[user_id]
 
-        user_stemmed_messages[user_id] = messages
+    users_after_banalcing = len(users_messages.keys())
+    print('balance_messages discarded ', users_before_balancing - users_after_banalcing, ' users')
+
+    return users_messages
+
+
+def stem_messages(users_messages):
+    users_stemmed_messages = {}
+    for user_id, messages in users_messages.items():
+        # keep only strings with content as messages
+        messages = [message for message in messages if message_is_valid(message)]
+        for index, message in enumerate(messages):
+            stemmed_message = stem_message(message)
+            stemmed_message = clear_low_information_words(stemmed_message)
+            if len(stemmed_message) > 1:
+                messages[index] = stemmed_message
+
+        users_stemmed_messages[user_id] = messages
         print('User', user_id, 'has', len(messages), 'messages')
 
     # TODO: debug
     #pp = pprint.PrettyPrinter(indent=4)
     #pp.pprint(user_stemmed_messages)
-    return user_stemmed_messages
+    return users_stemmed_messages
 
+
+def message_is_valid(message):
+    return isinstance(message, str) and len(message) > 1
+
+
+def clear_low_information_words(message):
+    output = []
+    for word in message.split():
+        # remove links, as they contain no real conversation info and cannot be stemmed
+        if not word.startswith('http'):
+            output.append(word)
+
+    return str.join(' ', output)
 
 if __name__ == '__main__':
     sys.exit(main())
