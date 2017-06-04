@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <meta charset="utf-8">
+        <title>Home</title>
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+    </head>
+    <body>
+        <section>
+            <form id="message-form" action="/suggest-author" method="POST" enctype="application/x-www-form-urlencoded">
+                Message: <input type="text" name="message"><br>
+                <input type="submit" value="Submit">
+                <span class="status"></span>
+            </form>
+        </section>
+        <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.2.1/jquery.min.js"></script>
+        <script>
+            $('#message-form').submit(function(e) {
+                e.preventDefault();
+                var $form = $(this);
+                var action = $form.attr('action');
+                var method = $form.attr('method');
+                var enctype = $form.attr('enctype');
+
+                $.ajax({
+                    url: action,
+                    type: method,
+                    contentType: enctype,
+                    data: $form.serialize(),
+                    dataType: 'json',
+                    success: function(res) {
+                        var $status = $form.find('.status');
+
+                        if (res.status === 'success') {
+                            $status.text(res.author);
+                            // TODO: reset form?
+                            //$form.get(0).reset();
+                        } else {
+                            $status.text('Error: ' + res.error);
+                        }
+                    }
+                });
+            });
+        </script>
+    </body>
+</html>

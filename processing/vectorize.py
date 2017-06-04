@@ -2,6 +2,8 @@
     Fit and transform messages data using a tf-idf vectorizer
 """
 import sys
+import os
+import io
 import pickle
 import pprint
 import numpy
@@ -11,8 +13,15 @@ from sklearn import cross_validation
 from nltk.corpus import stopwords
 import json
 
-from processing.stem import stem_message
+from stem import stem_message
 
+# always read input stream as utf-8
+# ref: https://stackoverflow.com/questions/16549332/python-3-how-to-specify-stdin-encoding
+input_stream = io.TextIOWrapper(sys.stdin.buffer, encoding='utf-8')
+
+# relative paths (cwd) changes when this script is called from node
+# using absolute paths instead
+BASE_PATH = os.path.dirname(os.path.realpath(__file__))
 
 def main():
     # TODO: cache classifier and vectorizer into pkl files.
@@ -20,26 +29,27 @@ def main():
     clf, vectorizer = vectorize_and_get_classifier()
 
     # TODO: taken from json-to-pkl.py
-    with open('../slack-data/users.json', 'r') as users_json:
+    with open(os.path.join(BASE_PATH, '..', 'slack-data', 'users.json'), 'r') as users_json:
         users = json.load(users_json)
 
     print('Listening for messages...')
 
     # listen for messages in stdin
-    for message in sys.stdin:
+    for message in input_stream:
         # remove newline symbols, if any
         message = message.strip('\r\n')
         stemmed_message = stem_message(message)
         feature = vectorizer.transform([stemmed_message])
         author_index = clf.predict(feature)[0]
 
-        print('"' + str(message) + '"' + ' най-вероятно е съобщение на ' + str(users[author_index]['real_name']) + ' (' + str(author_index) + ')')
+        #print('"' + str(message) + '"' + ' най-вероятно е съобщение на ' + str(users[author_index]['real_name']) + ' (' + str(author_index) + ')')
+
         # slack-data response to stdout
-        sys.stdout.write(str(users[author_index]['real_name']) + '\n')
+        print(str(users[author_index]['real_name']))
 
 def vectorize_and_get_classifier(trainset_limit=0):
-    authors = pickle.load(open('authors.pkl', 'rb'))
-    messages = pickle.load(open('messages.pkl', 'rb'))
+    authors = pickle.load(open(os.path.join(BASE_PATH, 'authors.pkl'), 'rb'))
+    messages = pickle.load(open(os.path.join(BASE_PATH, 'messages.pkl'), 'rb'))
 
     # print messages
     #pp = pprint.PrettyPrinter(indent=4)
