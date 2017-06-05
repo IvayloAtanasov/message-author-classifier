@@ -69,10 +69,35 @@ class SlackDataLoader {
         });
     }
 
-    getChannelHistory(channelId, channelHistoryLimit, done) {
+    getPrivateChannels(done) {
         request({
             baseUrl: this.baseUrl,
-            uri: 'channels.history',
+            uri: 'groups.list',
+            method: 'POST',
+            form: {
+                token: this.secrets.accessToken
+            },
+            json: true
+        }, (err, res, body) => {
+            if (err) return done(err);
+            if (body.ok !== true) return done(new Error('groups.list request failed'));
+
+            let channels = body.groups.map(channel => {
+                return {
+                    id: channel.id,
+                    name: channel.name
+                };
+            });
+
+            return done(null, channels);
+        });
+    }
+
+    getChannelHistory(channelId, isPrivate, channelHistoryLimit, done) {
+        let uri = isPrivate ? 'groups.history' : 'channels.history';
+        request({
+            baseUrl: this.baseUrl,
+            uri: uri,
             method: 'POST',
             form: {
                 token: this.secrets.accessToken,
@@ -103,43 +128,80 @@ class SlackDataLoader {
         });
     }
 
-    makeChannelsFile(channelsLimit = 999, channelHistoryLimit = 100) {
+    makeChannelsFile(channelsLimit, channelHistoryLimit, done) {
         let output = [];
         this.getChannels((err, channels) => {
-            if (err) return console.error(err);
+            if (err) return done(err);
 
             channels = channels.slice(0, channelsLimit);
             async.eachSeries(channels, (channel, next) => {
                 console.log(`Fetching history for channel ${channel.name}`);
-                this.getChannelHistory(channel.id, channelHistoryLimit, (err, history) => {
+                this.getChannelHistory(channel.id, false, channelHistoryLimit, (err, history) => {
                     if (err) return next(err);
                     output.push({channel: channel.id, history: history});
 
                     return next();
                 });
             }, err => {
-                if (err) return console.error(err);
-                console.log('Fetching history done');
+                if (err) return done(err);
                 // write into file
                 fs.writeFile(path.join(this.outputDir, 'channels.json'), JSON.stringify(output), err => {
-                    if (err) return console.log(`File write error: ${err}`);
+                    if (err) return done(err);
                     console.log('makeChannelsFile - channels.json done');
+                    return done();
                 });
             });
         });
     }
 
-    makeUsersFile() {
+    // TODO: reuse from makeChannelsFile?
+    makePrivateChannelsFile(channelsLimit, channelHistoryLimit, done) {
+        let output = [];
+        this.getPrivateChannels((err, channels) => {
+            if (err) return done(err);
+
+            channels = channels.slice(0, channelsLimit);
+            async.eachSeries(channels, (channel, next) => {
+                console.log(`Fetching history for private channel ${channel.name}`);
+                this.getChannelHistory(channel.id, true, channelHistoryLimit, (err, history) => {
+                    if (err) return next(err);
+                    output.push({channel: channel.id, history: history});
+
+                    return next();
+                });
+            }, err => {
+                if (err) return done(err);
+                // write into file
+                fs.writeFile(path.join(this.outputDir, 'privateChannels.json'), JSON.stringify(output), err => {
+                    if (err) return done(err);
+                    console.log('makePrivateChannelsFile - privateChannels.json done');
+                    return done();
+                });
+            });
+        });
+    }
+
+    makeUsersFile(done) {
         this.getUsers((err, users) => {
-            if (err) return console.error(err);
+            if (err) return done(err);
             fs.writeFile(path.join(this.outputDir, 'users.json'), JSON.stringify(users), err => {
-                if (err) return console.log(`File write error: ${err}`);
+                if (err) return done(err);
                 console.log('makeUsersFile - users.json done');
+                return done();
             });
         });
     }
 }
 
 const slack = new SlackDataLoader('slack-data', secrets.slack);
-slack.makeChannelsFile(999, 1000);
-slack.makeUsersFile();
+async.series([
+    next => { slack.makeUsersFile(next); },
+    next => { slack.makeChannelsFile(999, 1000, next); },
+    next => { slack.makePrivateChannelsFile(999, 1000, next); }
+], err => {
+    if (err) {
+        console.error(err);
+    } else {
+        console.log('DONE');
+    }
+});

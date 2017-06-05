@@ -10,6 +10,7 @@ from stem import stem_message
 
 MIN_MESSAGES_REQUIRED = 500
 
+
 def main():
     # load files
     with open('../slack-data/users.json', 'r', encoding='utf-8') as users_json:
@@ -17,6 +18,12 @@ def main():
 
     with open('../slack-data/channels.json', 'r', encoding='utf-8') as channels_json:
         channels = json.load(channels_json)
+
+    with open('../slack-data/privateChannels.json', 'r', encoding='utf-8') as private_channels_json:
+        private_channels = json.load(private_channels_json)
+
+    # merge channels with private channels
+    channels = channels + private_channels
 
     # testing user_index_by_id
     #print(user_index_by_id('U039UP4E6', users)) # 31
@@ -38,6 +45,8 @@ def main():
         for message in messages:
             authors_output.append(user_index_by_id(user_id, users))
             messages_output.append(message)
+
+    print('Saving a total of ' + str(len(messages_output)) + ' processed messages')
 
     pickle.dump(messages_output, open('messages.pkl', 'wb'))
     pickle.dump(authors_output, open('authors.pkl', 'wb'))
@@ -89,6 +98,11 @@ def flatten_messages(channels):
 def balance_messages(users_messages):
     users_before_balancing = len(users_messages.keys())
     for user_id in list(users_messages.keys()):
+        # remove user with id of undefined (custom Slack bots)
+        if user_id == 'undefined':
+            del users_messages[user_id]
+            continue
+        # remove users with less messages than defined threshold
         if len(users_messages[user_id]) < MIN_MESSAGES_REQUIRED:
             del users_messages[user_id]
 
