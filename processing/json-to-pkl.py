@@ -4,11 +4,14 @@
 import sys
 import json
 import pickle
+import random
 import pprint
 
 from stem import stem_message
 
-MIN_MESSAGES_REQUIRED = 500
+# TODO: could be made dynamic based on dataset average and median
+MIN_SAMPLES_PER_CLASS = 1000
+TARGET_SAMPLES_PER_CLASS = 1500
 
 
 def main():
@@ -25,19 +28,14 @@ def main():
     # merge channels with private channels
     channels = channels + private_channels
 
-    # testing user_index_by_id
-    #print(user_index_by_id('U039UP4E6', users)) # 31
-    #print(user_index_by_id('UE39AP456', users)) # False
-    #print(user_index_by_id('U02JCLRNM', users)) # 14
-    #print(user_index_by_id('U035G43MH', users)) # 3
-
+    # merge from "per-channel" to "per-user" messages collection
     users_messages = flatten_messages(channels)
-    # balance dataset by discarding users without enough messages
-    # and discarding data for users with too many
-    # ref: https://www.quora.com/In-classification-how-do-you-handle-an-unbalanced-training-set
-    users_messages = balance_messages(users_messages)
-    # stem words before outputting to pkl
+    # remove users with not enough messages as over-sampling their messages can lead to overfitting
+    users_messages = discard_insufficient_data_users(users_messages, users)
+    # stem words in messages
     users_messages = stem_messages(users_messages)
+    # make all remained users have equal number of messages
+    users_messages = balance_messages(users_messages)
 
     messages_output = []
     authors_output = []
@@ -46,14 +44,19 @@ def main():
             authors_output.append(user_index_by_id(user_id, users))
             messages_output.append(message)
 
-    print('Saving a total of ' + str(len(messages_output)) + ' processed messages')
-
     pickle.dump(messages_output, open('messages.pkl', 'wb'))
     pickle.dump(authors_output, open('authors.pkl', 'wb'))
 
+    print('Saved a total of ' + str(len(messages_output)) + ' processed messages')
+
 
 def user_index_by_id(slack_id, users):
-    """ Returns index of user in users list, based on it's Slack id """
+    """
+        Returns index of user in users list, based on it's Slack id
+        :param slack_id:
+        :param users:
+        :return: Index in users or False
+    """
 
     found_users = [user for user in users if user['id'] == slack_id]
     if len(found_users) == 0:
@@ -80,6 +83,8 @@ def flatten_messages(channels):
         {
             userId: messages
         }
+        :param channels:
+        :return: messages
     """
     messages = {}
     for channel in channels:
@@ -95,19 +100,29 @@ def flatten_messages(channels):
     return messages
 
 
-def balance_messages(users_messages):
-    users_before_balancing = len(users_messages.keys())
+def discard_insufficient_data_users(users_messages, users):
+    """
+        Remove custom slack bot messages (as they are represented in a single class)
+        Remove users without enough messages for processing
+        :param users_messages:
+        :param users:
+        :return: users_messages
+    """
+    users_before_count = len(users_messages.keys())
     for user_id in list(users_messages.keys()):
         # remove user with id of undefined (custom Slack bots)
         if user_id == 'undefined':
             del users_messages[user_id]
             continue
         # remove users with less messages than defined threshold
-        if len(users_messages[user_id]) < MIN_MESSAGES_REQUIRED:
+        if len(users_messages[user_id]) < MIN_SAMPLES_PER_CLASS:
             del users_messages[user_id]
 
-    users_after_banalcing = len(users_messages.keys())
-    print('balance_messages discarded ', users_before_balancing - users_after_banalcing, ' users')
+    users_after_count = len(users_messages.keys())
+    print('Discarded ', users_before_count - users_after_count, ' users, ', users_after_count, ' remained.')
+    # debugging in detail
+    users_after = [users[user_index_by_id(user_id, users)]["real_name"] for user_id in users_messages.keys()]
+    print(users_after)
 
     return users_messages
 
@@ -137,6 +152,11 @@ def message_is_valid(message):
 
 
 def clear_low_information_words(message):
+    """
+        Remove links from messages
+        :param message:
+        :return: message
+    """
     output = []
     for word in message.split():
         # remove links, as they contain no real conversation info and cannot be stemmed
@@ -144,6 +164,46 @@ def clear_low_information_words(message):
             output.append(word)
 
     return str.join(' ', output)
+
+
+def balance_messages(users_messages):
+    """
+        Balance dataset by:
+        1. over-sampling data for users with less than the target messages count
+        2. under-sampling (discarding) data for users with too many
+        ref: https://www.quora.com/In-classification-how-do-you-handle-an-unbalanced-training-set
+        :param users_messages:
+        :return: users_messages
+    """
+    random.seed(420)
+    # TODO: find out why messages data is always different, random seeder works as expected
+    for user_id in list(users_messages.keys()):
+        messages = users_messages[user_id]
+        messages_count = len(messages)
+        if messages_count > TARGET_SAMPLES_PER_CLASS:
+            # under-sampling
+            discard_count = messages_count - TARGET_SAMPLES_PER_CLASS
+            selected_for_removal = random.sample(messages, discard_count)
+            # select one by one, not filter, so we leave duplicating values intact if any
+            selection = []
+            for message in messages:
+                if message in selected_for_removal:
+                    selected_for_removal.remove(message)
+                    continue
+                selection.append(message)
+            users_messages[user_id] = selection
+        elif messages_count < TARGET_SAMPLES_PER_CLASS:
+            # over-sampling
+            duplicate_count = TARGET_SAMPLES_PER_CLASS - messages_count
+            selected_for_adding = random.sample(messages, duplicate_count)
+            users_messages[user_id] = users_messages[user_id] + selected_for_adding
+            pass
+        else:
+            # just the right samples volume, do nothing
+            pass
+
+    return users_messages
+
 
 if __name__ == '__main__':
     sys.exit(main())
