@@ -5,10 +5,7 @@ const async = require('async');
 
 const secrets = require('./secrets');
 
-// TODO: 
-// Private channels
-// https://api.slack.com/methods/groups.list
-// https://api.slack.com/methods/groups.history
+// TODO:
 // Group chats
 // https://api.slack.com/methods/mpim.list
 // https://api.slack.com/methods/mpim.history

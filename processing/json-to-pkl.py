@@ -16,6 +16,8 @@ TARGET_SAMPLES_PER_CLASS = 1500
 
 def main():
     # load files
+    # TODO: json loading is different every time, use object_pairs_hook?
+    #  https://docs.python.org/3/library/json.html#json.load
     with open('../slack-data/users.json', 'r', encoding='utf-8') as users_json:
         users = json.load(users_json)
 
@@ -176,9 +178,9 @@ def balance_messages(users_messages):
         :return: users_messages
     """
     random.seed(420)
-    # TODO: find out why messages data is always different, random seeder works as expected
     for user_id in list(users_messages.keys()):
-        messages = users_messages[user_id]
+        # sorted guarantees random function will remove the same messages on run
+        messages = sorted(users_messages[user_id])
         messages_count = len(messages)
         if messages_count > TARGET_SAMPLES_PER_CLASS:
             # under-sampling
@@ -197,7 +199,6 @@ def balance_messages(users_messages):
             duplicate_count = TARGET_SAMPLES_PER_CLASS - messages_count
             selected_for_adding = random.sample(messages, duplicate_count)
             users_messages[user_id] = users_messages[user_id] + selected_for_adding
-            pass
         else:
             # just the right samples volume, do nothing
             pass
