@@ -10,8 +10,8 @@ import pprint
 from stem import stem_message
 
 # TODO: could be made dynamic based on dataset average and median
-MIN_SAMPLES_PER_CLASS = 1000
-TARGET_SAMPLES_PER_CLASS = 1500
+MIN_SAMPLES_PER_CLASS = 1500
+TARGET_SAMPLES_PER_CLASS = 2500
 
 
 def main():

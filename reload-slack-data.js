@@ -5,11 +5,6 @@ const async = require('async');
 
 const secrets = require('./secrets');
 
-// TODO:
-// Group chats
-// https://api.slack.com/methods/mpim.list
-// https://api.slack.com/methods/mpim.history
-
 class SlackDataLoader {
 
     constructor(outputDir, secrets) {
@@ -92,30 +87,61 @@ class SlackDataLoader {
 
     getChannelHistory(channelId, isPrivate, channelHistoryLimit, done) {
         let uri = isPrivate ? 'groups.history' : 'channels.history';
-        request({
-            baseUrl: this.baseUrl,
-            uri: uri,
-            method: 'POST',
-            form: {
-                token: this.secrets.accessToken,
-                channel: channelId,
-                count: channelHistoryLimit // 1-1000
-            },
-            json: true
-        }, (err, res, body) => {
-            if (err) return done(err);
-            if (body.ok !== true) return done(new Error(`chanels.history request failed for channel ${channelId}`));
+        const maxEntriesPerPage = 1000; // 1-1000
 
-            // filter text messages only
-            let messages = body.messages.filter(message => message.type === 'message' && message.subtype !== 'file_share');
-            // leave text only, sort by user
-            let messagesByUser = {};
-            messages.forEach(message => {
-                if (!Array.isArray(messagesByUser[message.user]))
-                    messagesByUser[message.user] = [];
+        let fetchLimit = maxEntriesPerPage;
+        if (channelHistoryLimit < maxEntriesPerPage) fetchLimit = channelHistoryLimit;
+        let latest = null;
 
-                messagesByUser[message.user].push(message.text);
+        const results = [];
+        async.doUntil(next => {
+            request({
+                baseUrl: this.baseUrl,
+                uri: uri,
+                method: 'POST',
+                form: {
+                    token: this.secrets.accessToken,
+                    channel: channelId,
+                    count: fetchLimit,
+                    latest: latest
+                },
+                json: true
+            }, (err, res, body) => {
+                if (err) return next(err);
+                if (body.ok !== true) return next(new Error(`channels.history request failed for channel ${channelId}`));
+
+                console.log(`channels.history request fetched ${body.messages.length} messages for channel ${channelId}`);
+                results.push(body);
+
+                return next(null, body);
             });
+        }, body => {
+            channelHistoryLimit -= fetchLimit;
+            if (channelHistoryLimit < maxEntriesPerPage) fetchLimit = channelHistoryLimit;
+
+            // get last record timestamp to be used as starting point into next request
+            if (body.messages.length > 0)
+                latest = body.messages[body.messages.length - 1].ts;
+
+            // continue fetching if there are more entries in channel and limit is not reached
+            return !body.has_more || fetchLimit === 0;
+        }, err => {
+            // Note: 2nd cb param seems to be the last returned result, not array of all. Used custom results holder.
+            if (err) return done(err);
+
+            let messagesByUser = {};
+            results.forEach(body => {
+                // filter text messages only
+                let messages = body.messages.filter(message => message.type === 'message' && message.subtype !== 'file_share');
+                // leave text only, sort by user
+                messages.forEach(message => {
+                    if (!Array.isArray(messagesByUser[message.user]))
+                        messagesByUser[message.user] = [];
+
+                    messagesByUser[message.user].push(message.text);
+                });
+            });
+
             let history = [];
             Object.keys(messagesByUser).forEach(userId => {
                 history.push({user: userId, messages: messagesByUser[userId]});
@@ -193,8 +219,8 @@ class SlackDataLoader {
 const slack = new SlackDataLoader('slack-data', secrets.slack);
 async.series([
     next => { slack.makeUsersFile(next); },
-    next => { slack.makeChannelsFile(999, 1000, next); },
-    next => { slack.makePrivateChannelsFile(999, 1000, next); }
+    next => { slack.makeChannelsFile(999, 10000, next); },
+    next => { slack.makePrivateChannelsFile(999, 10000, next); }
 ], err => {
     if (err) {
         console.error(err);
