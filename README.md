@@ -1,4 +1,4 @@
-# WIP
+# Message author classifier
 
 ## Dependencies
 
